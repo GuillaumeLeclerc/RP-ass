@@ -50,6 +50,15 @@ class WikipediaApiTest extends FunSuite {
     )
     assert(completed && count == 3, "completed: " + completed + ", event count: " + count)
   }
+  
+  test("WikipediaApi recovered")
+  {
+    val t = Observable(1,23,4)
+    val r = t.map(x => if(x == 4) throw new Exception() else x).recovered
+    val r2 = r.toBlockingObservable.toList
+    assert(r2.take(2) == List(Success(1), Success(23)))
+    assert(r2.last.isFailure == true)
+  }
 
   test("WikipediaApi should correctly use concatRecovered") {
     val requests = Observable(1, 2, 3)

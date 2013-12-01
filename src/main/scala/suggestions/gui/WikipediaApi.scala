@@ -12,6 +12,7 @@ import rx.subscriptions.CompositeSubscription
 import rx.lang.scala.Observable
 import observablex._
 import search._
+import rx.lang.scala.Notification._
 
 trait WikipediaApi {
 
@@ -48,7 +49,13 @@ trait WikipediaApi {
      *
      * E.g. `1, 2, 3, !Exception!` should become `Success(1), Success(2), Success(3), Failure(Exception), !TerminateStream!`
      */
-    def recovered: Observable[Try[T]] = ???
+    def recovered: Observable[Try[T]] = obs.materialize.filter{
+      case OnCompleted() => false
+      case _ => true
+    }.map{
+      case OnError(x) => Failure(x)
+      case OnNext(x) => Success(x)
+    }
 
     /** Emits the events from the `obs` observable, until `totalSec` seconds have elapsed.
      *
