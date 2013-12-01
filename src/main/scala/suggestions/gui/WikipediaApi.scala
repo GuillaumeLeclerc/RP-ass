@@ -13,6 +13,7 @@ import rx.lang.scala.Observable
 import observablex._
 import search._
 import rx.lang.scala.Notification._
+import rx.lang.scala.Subject
 
 trait WikipediaApi {
 
@@ -91,8 +92,7 @@ trait WikipediaApi {
      *
      * Observable(Success(1), Succeess(1), Succeess(1), Succeess(2), Succeess(2), Succeess(2), Succeess(3), Succeess(3), Succeess(3))
      */
-    def concatRecovered[S](requestMethod: T => Observable[S]): Observable[Try[S]] = ???
-
+    def concatRecovered[S](requestMethod: T => Observable[S]): Observable[Try[S]] = obs.map(requestMethod(_).recovered).flatten
   }
 
 }

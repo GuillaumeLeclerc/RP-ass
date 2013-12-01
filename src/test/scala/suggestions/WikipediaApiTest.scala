@@ -66,6 +66,13 @@ class WikipediaApiTest extends FunSuite {
     val t = r.timedOut(1).toBlockingObservable.toList
     assert(t.length == 100)
   }
+  
+  test("WikipediaApi concatRecovered")
+  {
+    val values = Observable( 1, 2, 3, 4, 5)
+    val res = values.concatRecovered(num => if (num != 4) Observable(num) else Observable(new Exception))
+    println(res.toBlockingObservable.toList)
+  }
 
   test("WikipediaApi should correctly use concatRecovered") {
     val requests = Observable(1, 2, 3)
