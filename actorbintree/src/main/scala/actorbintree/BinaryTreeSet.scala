@@ -70,8 +70,10 @@ class BinaryTreeSet extends Actor {
   val normal: Receive = {
  	case o : Operation => root ! o
 	case GC => {
-		
-
+		val oldRoot = root
+		root = createRoot
+		oldRoot ! BinaryTreeNode.CopyTo(root)
+	}
 	case _ => {}
   }
 
@@ -82,9 +84,8 @@ class BinaryTreeSet extends Actor {
     */
   def garbageCollecting(newRoot: ActorRef): Receive = {
   	case o : Operation => {pendingQueue += o}
-	case _ => 
+	case BinaryTreeNode.CopyFinished => become(normal)
   }
-
 }
 
 object BinaryTreeNode {
@@ -102,6 +103,7 @@ object BinaryTreeNode {
 class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
   import BinaryTreeNode._
   import BinaryTreeSet._
+  import context._
 
   var subtrees = Map[Position, ActorRef]()
   var removed = initiallyRemoved
@@ -151,14 +153,27 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
 			}
 		}
 	}
-	case GC => become copying(subtrees.filter(!_.removed , false))
+	case CopyTo(target) => {
+		target ! Insert(this , -1 , elem)
+		subtrees.foreach(_ ! CopyTo(target))
+		become copying(subtrees.toSet , false)
+	}
   }
 
   // optional
   /** `expected` is the set of ActorRefs whose replies we are waiting for,
     * `insertConfirmed` tracks whether the copy of this node to the new tree has been confirmed.
     */
-  def copying(expected: Set[ActorRef], insertConfirmed: Boolean): Receive = ???
+  def copying(expected: Set[ActorRef], insertConfirmed: Boolean): Receive = {
+  	case OperationFinished(_) => if (extends.length == 0) become normal else {
+		become(copying(expected , true))
+		parent ! CopyFinished
+	}
+	case CopyFinished => {
+		val newExpected = expected - sender
+		if(newExpected.length == 0 && insertConfirmed) become(normal)
+		else become(copying(newExpected , insertConfirmed))
+
 
 }
 
