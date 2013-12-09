@@ -53,6 +53,7 @@ object BinaryTreeSet {
 class BinaryTreeSet extends Actor {
   import BinaryTreeSet._
   import BinaryTreeNode._
+  import context._
 
   def createRoot: ActorRef = context.actorOf(BinaryTreeNode.props(0, initiallyRemoved = true))
 
@@ -66,14 +67,23 @@ class BinaryTreeSet extends Actor {
 
   // optional
   /** Accepts `Operation` and `GC` messages. */
-  val normal: Receive = { case _ => ??? }
+  val normal: Receive = {
+ 	case o : Operation => root ! o
+	case GC => {
+		
+
+	case _ => {}
+  }
 
   // optional
   /** Handles messages while garbage collection is performed.
     * `newRoot` is the root of the new binary tree where we want to copy
     * all non-removed elements into.
     */
-  def garbageCollecting(newRoot: ActorRef): Receive = ???
+  def garbageCollecting(newRoot: ActorRef): Receive = {
+  	case o : Operation => {pendingQueue += o}
+	case _ => 
+  }
 
 }
 
@@ -98,10 +108,51 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
 
   // optional
   def receive = normal
+  def getPositionFromValue(i : Int) : Position = if(i < elem) Left else Right
+  def getChild(i : Int) : Option[ActorRef] = subtrees.get(getPositionFromValue(i))
 
   // optional
   /** Handles `Operation` messages and `CopyTo` requests. */
-  val normal: Receive = { case _ => ??? }
+  val normal: Receive = {
+  	 case  Contains(requester , id, findElem ) => {
+	 	if(elem == findElem) requester !  ContainsResult(id , removed)
+		else{
+			getChild(findElem) match {
+				case None => requester ! ContainsResult(id , false)
+				case Some(child) => child ! Contains(requester , id , findElem)
+			}
+		}
+	}
+	case Insert(requester , id , addElem) => {
+		if(addElem == elem) {
+			removed = false 
+			requester ! OperationFinished(id)
+		}
+		else
+		{
+			getChild(addElem) match {
+				case None => subtrees = {
+					requester ! OperationFinished(id)
+					subtrees.+(getPositionFromValue(addElem) -> context.actorOf(BinaryTreeNode.props(addElem , false)))
+				}
+				case Some(child) => child ! Insert(requester , id , addElem)
+			}
+		}
+	}
+	case Remove(requester , id , removeElem) => {
+		if(removeElem == elem) {
+			removed = true
+			requester ! OperationFinished(id)
+		}
+		else {
+			getChild(removeElem) match {
+				case None => subtrees = subtrees + (getPositionFromValue(removeElem) -> context.actorOf(BinaryTreeNode.props(removeElem , true)))
+				case Some(child) => child ! Remove(requester , id , removeElem)
+			}
+		}
+	}
+	case GC => become copying(subtrees.filter(!_.removed , false))
+  }
 
   // optional
   /** `expected` is the set of ActorRefs whose replies we are waiting for,
@@ -110,3 +161,4 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
   def copying(expected: Set[ActorRef], insertConfirmed: Boolean): Receive = ???
 
 }
+
