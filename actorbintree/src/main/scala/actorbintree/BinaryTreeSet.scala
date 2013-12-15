@@ -60,7 +60,7 @@ class BinaryTreeSet extends Actor {
   var root = createRoot
 
   // optional
-  var pendingQueue = Queue.empty[Operation]
+  var pendingQueue : Queue[Operation] = Queue.empty[Operation]
 
   // optional
   def receive = normal
@@ -83,7 +83,7 @@ class BinaryTreeSet extends Actor {
     * all non-removed elements into.
     */
   def garbageCollecting(newRoot: ActorRef): Receive = {
-  	case o : Operation => {pendingQueue += o}
+  	case o : Operation => {pendingQueue = pendingQueue.enqueue(o) }
 	case BinaryTreeNode.CopyFinished => become(normal)
   }
 }
@@ -154,9 +154,9 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
 		}
 	}
 	case CopyTo(target) => {
-		target ! Insert(this , -1 , elem)
-		subtrees.foreach(_ ! CopyTo(target))
-		become copying(subtrees.toSet , false)
+		target ! Insert(context.self , -1 , elem)
+		subtrees.foreach(_._2 ! CopyTo(target))
+		become(copying(subtrees.map(_._2).toSet , false))
 	}
   }
 
@@ -165,15 +165,17 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
     * `insertConfirmed` tracks whether the copy of this node to the new tree has been confirmed.
     */
   def copying(expected: Set[ActorRef], insertConfirmed: Boolean): Receive = {
-  	case OperationFinished(_) => if (extends.length == 0) become normal else {
-		become(copying(expected , true))
-		parent ! CopyFinished
+  	case OperationFinished(_) => {
+		if (expected.size == 0) become(normal) else {
+			become(copying(expected , true))
+				parent ! CopyFinished
+		}
 	}
 	case CopyFinished => {
 		val newExpected = expected - sender
-		if(newExpected.length == 0 && insertConfirmed) become(normal)
+		if(newExpected.size == 0 && insertConfirmed) become(normal)
 		else become(copying(newExpected , insertConfirmed))
-
-
+	}
+  }
 }
 
